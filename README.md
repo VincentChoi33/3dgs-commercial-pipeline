@@ -102,10 +102,34 @@ The trained PLY will be saved at `<output>/<name>/point_cloud/iteration_30000/po
 ```bash
 pip install plyfile numpy
 
-# Full compression pipeline (prune → SH reduction → f16 → binary+gzip)
+# Default: prune + SH0 + f16 (recommended, ~22% of original)
+python scripts/compress.py input.ply output.ply
+
+# With 50% downsampling (~11% of original)
+python scripts/compress.py input.ply output.ply --downsample 0.5
+
+# Keep SH degree 1 for some view-dependent effects (~37%)
+python scripts/compress.py input.ply output.ply --sh-degree 1
+
+# No compression, just prune
+python scripts/compress.py input.ply output.ply --sh-degree 3 --no-f16
+```
+
+### Recommended Compression for Serving
+
+| Preset | Command | Size | Notes |
+|--------|---------|------|-------|
+| **High quality** | `compress.py in.ply out.ply` | ~22% | SH0 + f16, no view-dependent effects |
+| **Balanced** | `compress.py in.ply out.ply --downsample 0.5` | ~11% | Slight detail loss |
+| **Max quality** | `compress.py in.ply out.ply --sh-degree 1` | ~37% | Keeps approximate reflections |
+
+### Additional Scripts
+
+```bash
+# Multi-stage compression with all intermediate outputs
 python scripts/compress_stages.py input.ply output_dir/ scene_name
 
-# Importance-based downsampling (generates 100%, 75%, 50%, 25%, 10%, 5%)
+# Importance-based downsampling at various ratios (100/75/50/25/10/5%)
 python scripts/downsample_gs.py input.ply output_dir/ scene_name
 
 # Convert to .splat for web viewers (32 bytes/Gaussian)
@@ -115,19 +139,12 @@ python scripts/convert_splat.py input.ply output_dir/ scene_name
 python scripts/compress_keep_sh.py input.ply output_dir/ scene_name
 ```
 
-### Recommended Compression for Serving
-
-For the best size-quality trade-off:
-
-1. **High quality** (SH deg0 + f16): ~22% of original, no view-dependent effects
-2. **Balanced** (SH deg0 + f16 + DS 50%): ~11% of original, slight detail loss
-3. **Web delivery** (.splat format): ~12% of original, compatible with web viewers
-
 ## Scripts
 
 | Script | Description |
 |--------|-------------|
-| `compress_stages.py` | Multi-stage compression: prune → SH reduction → f16 → binary+gzip |
+| **`compress.py`** | **One-step compression: input PLY → optimized output PLY** |
+| `compress_stages.py` | Multi-stage compression with all intermediate outputs |
 | `downsample_gs.py` | Importance-based Gaussian downsampling at various ratios |
 | `convert_splat.py` | Convert PLY to .splat format for web viewers |
 | `compress_keep_sh.py` | SH-preserving compression with Morton sort, f16/i16/mixed quantization |
