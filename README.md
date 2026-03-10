@@ -20,15 +20,14 @@ LightGlue (SfM) → Lightning + GSplatV1Renderer (Training) → Post-Processing 
 
 ## Results
 
-### MeetingRoom (69 images, iPhone 13 mini)
+### Visual Comparison
 
-![MeetingRoom comparison](assets/meetingroom_1.jpg)
-![MeetingRoom comparison 2](assets/meetingroom_2.jpg)
-
-### Office (416 images, iPhone 13 mini)
-
-![Office comparison](assets/office_1.jpg)
-![Office comparison 2](assets/office_2.jpg)
+| Scene | Ground Truth | Original | SH0+f16 | SH0+f16+DS50% |
+|-------|:---:|:---:|:---:|:---:|
+| **MeetingRoom** | ![GT](assets/meetingroom_gt.jpg) | ![Original](assets/meetingroom_original.jpg) | ![SH0+f16](assets/meetingroom_sh0_f16.jpg) | ![DS50%](assets/meetingroom_sh0_f16_ds50.jpg) |
+| | | 28.25 dB / 271 MB | 23.27 dB / 61 MB | 21.52 dB / 30 MB |
+| **Office** | ![GT](assets/office_gt.jpg) | ![Original](assets/office_original.jpg) | ![SH0+f16](assets/office_sh0_f16.jpg) | ![DS50%](assets/office_sh0_f16_ds50.jpg) |
+| | | 26.07 dB / 217 MB | 23.82 dB / 45 MB | 21.79 dB / 22 MB |
 
 ## Benchmark Results
 
