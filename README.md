@@ -27,14 +27,16 @@ LightGlue (SfM) → Lightning + GSplatV1Renderer (Training) → Post-Processing 
 | Ground Truth | Original | SH0+f16 | SH0+f16+DS50% |
 |:---:|:---:|:---:|:---:|
 | ![GT](assets/meetingroom_gt.jpg) | ![Original](assets/meetingroom_original.jpg) | ![SH0+f16](assets/meetingroom_sh0_f16.jpg) | ![DS50%](assets/meetingroom_sh0_f16_ds50.jpg) |
-| — | 28.25 dB / 271 MB | 23.27 dB / 61 MB | 21.52 dB / 30 MB |
+| PSNR | 28.25 dB | 23.27 dB | 21.52 dB |
+| Size | 271 MB | 61 MB (22%) | 30 MB (11%) |
 
 #### Office (416 images, iPhone 13 mini)
 
 | Ground Truth | Original | SH0+f16 | SH0+f16+DS50% |
 |:---:|:---:|:---:|:---:|
 | ![GT](assets/office_gt.jpg) | ![Original](assets/office_original.jpg) | ![SH0+f16](assets/office_sh0_f16.jpg) | ![DS50%](assets/office_sh0_f16_ds50.jpg) |
-| — | 26.07 dB / 217 MB | 23.82 dB / 45 MB | 21.79 dB / 22 MB |
+| PSNR | 26.07 dB | 23.82 dB | 21.79 dB |
+| Size | 217 MB | 45 MB (21%) | 22 MB (10%) |
 
 ## Benchmark Results
 
