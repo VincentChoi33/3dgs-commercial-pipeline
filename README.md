@@ -18,6 +18,87 @@ LightGlue (SfM) → Lightning + GSplatV1Renderer (Training) → Post-Processing 
 
 **Entire stack is commercially usable.**
 
+## End-to-End Pipeline
+
+### Installation
+
+**Option A: Conda (recommended)**
+```bash
+conda env create -f environment.yml
+conda activate gsplat
+
+# Clone gaussian-splatting-lightning
+git clone https://github.com/yzslab/gaussian-splatting-lightning
+cd gaussian-splatting-lightning && pip install -r requirements.txt
+```
+
+**Option B: Docker**
+```bash
+docker build -t gsplat-pipeline .
+docker run --gpus all -v /data:/data gsplat-pipeline run -i /data/video.mp4 -o /data/output -n scene
+```
+
+### Usage
+
+**Full pipeline (video → compressed PLY):**
+```bash
+python pipeline.py run --input video.mp4 --output ./output --name office
+```
+
+**Full pipeline (photos → compressed PLY):**
+```bash
+python pipeline.py run --input ./photos/ --output ./output --name office
+```
+
+**Step-by-step:**
+```bash
+# 1. Preprocess: extract frames + blur filter
+python pipeline.py preprocess -i video.mp4 -o ./output/office
+
+# 2. SfM: LightGlue + COLMAP reconstruction
+python pipeline.py sfm -i ./output/office/images -o ./output/office
+
+# 3. Train: 3DGS with GSplatV1Renderer
+python pipeline.py train -o ./output/office -n office
+
+# 4. Export: checkpoint → full PLY
+python pipeline.py export -o ./output/office
+
+# 5. Compress: prune + SH0 + f16 + downsample
+python pipeline.py compress -i ./output/office/full.ply -o ./output/office
+```
+
+**Custom config:**
+```bash
+python pipeline.py --config my_config.yaml run -i video.mp4 -o ./output -n scene
+```
+
+### Output Structure
+
+```
+output/office/
+├── images/              # Preprocessed frames
+├── sparse/0/            # SfM result (cameras.bin, images.bin, points3D.bin)
+├── training/            # Checkpoints and logs
+├── full.ply             # Full Gaussian PLY (~200 MB)
+├── compressed.ply       # SH0 + f16 (~40 MB, ~20%)
+└── compressed_ds50.ply  # SH0 + f16 + DS50% (~20 MB, ~10%)
+```
+
+### Configuration
+
+Default settings in `configs/default.yaml`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `preprocess.fps` | 2 | Frame extraction rate for video |
+| `preprocess.blur_percentile` | 20 | Remove bottom N% blurriest frames |
+| `sfm.matcher` | lightglue | Feature matcher (lightglue/superglue) |
+| `train.max_steps` | 30000 | Training iterations |
+| `train.lambda_dssim` | 0.3 | SSIM loss weight |
+| `compress.sh_degree` | 0 | Target SH degree (0=DC only) |
+| `compress.downsample` | 0.5 | Keep ratio (0.5 = 50%) |
+
 ## Results
 
 ### Visual Comparison

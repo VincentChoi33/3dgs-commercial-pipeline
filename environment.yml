@@ -1,0 +1,24 @@
+name: gsplat
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch>=2.1
+  - torchvision
+  - pytorch-cuda=12.1
+  - numpy
+  - scipy
+  - opencv
+  - ffmpeg
+  - pip
+  - pip:
+      - plyfile
+      - pyyaml
+      - pycolmap
+      - hloc @ git+https://github.com/cvg/Hierarchical-Localization
+      - gsplat
+      - lightning
+      - jsonargparse[signatures]

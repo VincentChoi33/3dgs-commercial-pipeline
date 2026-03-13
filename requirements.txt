@@ -1,2 +1,5 @@
 numpy
 plyfile
+pyyaml
+opencv-python
+torch
