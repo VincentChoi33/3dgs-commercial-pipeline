@@ -1,0 +1,29 @@
+preprocess:
+  fps: 2
+  blur_filter: true
+  blur_percentile: 20
+
+sfm:
+  feature: superpoint
+  matcher: lightglue
+  camera_model: SIMPLE_RADIAL
+  convert_to_pinhole: true
+
+train:
+  framework_path: null
+  config: gsplat_v1.yaml
+  max_steps: 30000
+  lambda_dssim: 0.3
+  save_iterations:
+    - 7000
+    - 30000
+  gpu: 0
+
+export:
+  step: null
+
+compress:
+  sh_degree: 0
+  float16: true
+  prune_threshold: 0.005
+  downsample: 0.5
