@@ -73,21 +73,51 @@ Training: gsplat_v1.yaml, 30k steps, lambda_dssim=0.3
 PSNR improvement of **+2.33** (6027) and **+1.10** (6028) from SfM changes alone.
 This confirms that SfM quality is a significant lever for 3DGS output quality, particularly point cloud density.
 
+## Full Resolution Experiment (resize_max=3840)
+
+Additional experiment: extract features at native 4K resolution (3840x2160) instead of downscaled 1600px.
+
+### SfM Comparison (6027)
+
+| resize_max | SfM Points | Change | SfM Time |
+|---|---|---|---|
+| 1024 (baseline) | 23,388 | - | ~60s |
+| 1600 (improved) | 36,346 | +55% | 330s |
+| **3840 (full res)** | **53,707** | **+130%** | 454s |
+
+### 3DGS Quality Comparison (6027, 30k steps)
+
+| resize_max | SfM Points | PSNR | SSIM | LPIPS |
+|---|---|---|---|---|
+| 1024 (baseline) | 23,388 | 29.37 | 0.942 | - |
+| 1600 (improved) | 36,346 | **31.70** | **0.958** | 0.163 |
+| 3840 (full res) | 53,707 | **31.80** | **0.958** | 0.160 |
+
+### Conclusion
+
+Point cloud density increases proportionally with resolution (+130%), but **PSNR gain is only +0.10** (31.70 → 31.80).
+**resize_max=1600 is the optimal trade-off** — 4K provides diminishing returns because:
+- SuperPoint was trained on lower-resolution images
+- max_keypoints=4096 cap limits the benefit of additional resolution
+- 3DGS training doesn't fully utilize the extra point density
+
 ## Output Files
 
 ### Gaussian Counts
 
 | Scene | Full | After Prune | After DS50% |
 |-------|------|-------------|-------------|
-| 6027 | 993,109 | 880,410 | 440,205 |
-| 6028 | 1,170,086 | 937,695 | 468,847 |
+| 6027 (1600) | 993,109 | 880,410 | 440,205 |
+| 6027 (3840) | 990,747 | 879,085 | 439,542 |
+| 6028 (1600) | 1,170,086 | 937,695 | 468,847 |
 
 ### File Sizes
 
 | Scene | full.ply | sh0_f16.ply | sh0_f16_ds50.ply |
 |-------|----------|-------------|------------------|
-| 6027 | 235 MB | 47 MB (20%) | 24 MB (10%) |
-| 6028 | 277 MB | 50 MB (18%) | 25 MB (9%) |
+| 6027 (1600) | 235 MB | 47 MB (20%) | 24 MB (10%) |
+| 6027 (3840) | 234 MB | 47 MB (20%) | 24 MB (10%) |
+| 6028 (1600) | 277 MB | 50 MB (18%) | 25 MB (9%) |
 
 ## Cumulative Results (All Experiments)
 
@@ -96,7 +126,8 @@ This confirms that SfM quality is a significant lever for 3DGS output quality, p
 | MeetingRoom | 69 photos | 28.25 | - | Photo-based, sparse |
 | Office | 416 photos | 26.07 | - | Photo-based |
 | 6027 (video) | 151 frames (baseline SfM) | 29.37 | 0.942 | Video, blur-filtered |
-| 6027 (video) | 142 frames (improved SfM) | **31.70** | **0.958** | Best result |
+| 6027 (video) | 142 frames (improved SfM, 1600) | **31.70** | **0.958** | Best trade-off |
+| 6027 (video) | 142 frames (full res SfM, 3840) | **31.80** | **0.958** | Marginal gain |
 | 6028 (video) | 173 frames (baseline SfM) | 23.80 | 0.874 | Video, blur-filtered |
 | 6028 (video) | 169 frames (improved SfM) | **24.90** | **0.898** | Improved |
 | 6028 orig | 217 frames (baseline SfM) | 22.89 | 0.856 | No blur filter |
