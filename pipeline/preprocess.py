@@ -2,20 +2,14 @@
 from __future__ import annotations
 
 import logging
-import shutil
-import subprocess
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+from pipeline.ingest import is_video
+
 log = logging.getLogger("pipeline.preprocess")
-
-VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
-
-
-def is_video(path: Path) -> bool:
-    return path.is_file() and path.suffix.lower() in VIDEO_EXTS
 
 
 def compute_blur_score(image: np.ndarray) -> float:
@@ -62,19 +56,8 @@ def filter_blurry_frames(images_dir: Path, percentile: int = 20) -> list[Path]:
 
 
 def run_preprocess(input_path: Path, output_dir: Path, cfg: dict) -> Path:
-    images_dir = output_dir / "images"
+    from pipeline.ingest import run_ingest
+    from pipeline.select import run_select
 
-    if is_video(input_path):
-        extract_frames(input_path, images_dir, fps=cfg.get("fps", 2))
-        if cfg.get("blur_filter", True):
-            filter_blurry_frames(images_dir, percentile=cfg.get("blur_percentile", 20))
-    else:
-        if input_path != images_dir:
-            images_dir.mkdir(parents=True, exist_ok=True)
-            for ext in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
-                for f in input_path.glob(ext):
-                    shutil.copy2(f, images_dir / f.name)
-        n = len(list(images_dir.iterdir()))
-        log.info(f"Copied {n} images → {images_dir}")
-
-    return images_dir
+    run_ingest(input_path, output_dir, cfg)
+    return run_select(output_dir, cfg)
