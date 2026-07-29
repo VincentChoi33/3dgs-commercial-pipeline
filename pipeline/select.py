@@ -33,6 +33,41 @@ def _load_pose_map(scene_dir: Path) -> dict[str, dict]:
     }
 
 
+def _translation_vector(pose_entry: dict | None) -> np.ndarray | None:
+    if pose_entry is None:
+        return None
+    translation = pose_entry.get("translation")
+    if not isinstance(translation, list) or len(translation) < 3:
+        return None
+    return np.asarray(translation[:3], dtype=float)
+
+
+def _build_pose_statistics(frames: list[dict], pose_map: dict[str, dict]) -> dict[str, dict[str, float | np.ndarray]]:
+    translation_items = []
+    for frame in frames:
+        image_name = frame["image_name"]
+        translation = _translation_vector(pose_map.get(image_name))
+        if translation is not None:
+            translation_items.append((image_name, translation))
+
+    if not translation_items:
+        return {}
+
+    translations = np.asarray([translation for _, translation in translation_items], dtype=float)
+    centroid = np.mean(translations, axis=0)
+    distances = np.linalg.norm(translations - centroid, axis=1)
+    max_distance = float(np.max(distances)) if len(distances) else 0.0
+
+    stats = {}
+    for (image_name, translation), distance in zip(translation_items, distances):
+        stats[image_name] = {
+            "translation": translation,
+            "baseline_distance": float(distance),
+            "max_baseline_distance": max(max_distance, 1.0),
+        }
+    return stats
+
+
 def _coverage_signal(frame_index: int, frame_count: int, pose_entry: dict | None) -> float:
     if frame_count <= 1:
         base_signal = 1.0
@@ -41,29 +76,64 @@ def _coverage_signal(frame_index: int, frame_count: int, pose_entry: dict | None
         base_signal = abs(frame_index - midpoint) / max(midpoint, 1.0)
 
     translation_signal = 0.0
-    if pose_entry is not None:
-        translation = pose_entry.get("translation")
-        if isinstance(translation, list) and len(translation) >= 3:
-            translation_signal = float(np.linalg.norm(np.asarray(translation[:3], dtype=float)))
+    translation = _translation_vector(pose_entry)
+    if translation is not None:
+        translation_signal = float(np.linalg.norm(translation))
 
     return base_signal + (0.1 * translation_signal)
 
 
-def _score_frame(image_path: Path, frame_index: int, frame_count: int, pose_entry: dict | None) -> dict:
+def _overlap_novelty(frame_index: int, frame_count: int) -> float:
+    if frame_count <= 1:
+        return 1.0
+    midpoint = (frame_count - 1) / 2
+    return abs(frame_index - midpoint) / max(midpoint, 1.0)
+
+
+def _baseline_diversity(
+    frame_index: int,
+    frame_count: int,
+    pose_stats: dict[str, float | np.ndarray] | None,
+) -> float:
+    if pose_stats is not None:
+        return float(pose_stats["baseline_distance"]) / float(pose_stats["max_baseline_distance"])
+    if frame_count <= 1:
+        return 1.0
+    return frame_index / max(frame_count - 1, 1)
+
+
+def _score_frame(
+    image_path: Path,
+    frame_index: int,
+    frame_count: int,
+    pose_entry: dict | None,
+    pose_stats: dict[str, float | np.ndarray] | None,
+) -> dict:
     image = cv2.imread(str(image_path))
     blur_score = compute_blur_score(image)
     temporal_spacing = min(frame_index, max(frame_count - frame_index - 1, 0))
+    overlap_novelty = _overlap_novelty(frame_index, frame_count)
+    baseline_diversity = _baseline_diversity(frame_index, frame_count, pose_stats)
     coverage_signal = _coverage_signal(frame_index, frame_count, pose_entry)
     pose_confidence = 1.0
     if pose_entry is not None and isinstance(pose_entry.get("confidence"), (int, float)):
         pose_confidence = float(pose_entry["confidence"])
 
-    total_score = blur_score + (temporal_spacing * 25.0) + (coverage_signal * 50.0) + (pose_confidence * 10.0)
+    total_score = (
+        blur_score
+        + (temporal_spacing * 25.0)
+        + (overlap_novelty * 20.0)
+        + (baseline_diversity * 20.0)
+        + (coverage_signal * 50.0)
+        + (pose_confidence * 10.0)
+    )
     return {
         "image_name": image_path.name,
         "frame_index": frame_index,
         "blur_score": blur_score,
         "temporal_spacing": temporal_spacing,
+        "overlap_novelty": overlap_novelty,
+        "baseline_diversity": baseline_diversity,
         "coverage_signal": coverage_signal,
         "pose_confidence": pose_confidence,
         "total_score": total_score,
@@ -138,6 +208,7 @@ def run_select(scene_dir: Path, cfg: dict) -> Path:
     target_keep_count = max(1, int(np.ceil(frame_count * keep_ratio)))
     min_blur_score = cfg.get("min_blur_score")
     max_temporal_gap = cfg.get("max_temporal_gap")
+    pose_statistics = _build_pose_statistics(frames, pose_map)
 
     scored_frames = []
     for frame in frames:
@@ -149,6 +220,7 @@ def run_select(scene_dir: Path, cfg: dict) -> Path:
                 int(frame.get("frame_index", len(scored_frames))),
                 frame_count,
                 pose_map.get(image_name),
+                pose_statistics.get(image_name),
             )
         )
 
