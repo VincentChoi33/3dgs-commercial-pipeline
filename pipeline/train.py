@@ -78,34 +78,37 @@ def _write_phase_override_config(base_config: Path, training_dir: Path, phase_ov
 
 
 def _resolve_training_config(framework: Path, cfg: dict, training_dir: Path) -> tuple[Path, dict]:
-    profile = cfg.get("profile", "default")
+    requested_profile = cfg.get("profile", "default")
+    resolved_profile = "quality" if requested_profile == "default" else requested_profile
     phase_overrides = cfg.get("phase_overrides") or {}
     config_name = cfg.get("config", "gsplat_v1.yaml")
-    uses_repo_profile = profile in _REPO_PROFILES
+    uses_repo_profile = resolved_profile in _REPO_PROFILES
     synced_profile_path = None
 
     if uses_repo_profile:
-        config_path = _copy_repo_profile(framework, profile)
-        config_name = _REPO_PROFILES[profile]["config_name"]
+        config_path = _copy_repo_profile(framework, resolved_profile)
+        config_name = _REPO_PROFILES[resolved_profile]["config_name"]
         synced_profile_path = config_path
     else:
         config_path = framework / "configs" / config_name
         if not config_path.exists():
             raise FileNotFoundError(
-                f"Training config '{config_name}' for profile '{profile}' was not found at {config_path}"
+                f"Training config '{config_name}' for profile '{requested_profile}' was not found at {config_path}"
             )
 
     if phase_overrides:
         config_path = _write_phase_override_config(config_path, training_dir, phase_overrides)
 
     command_choices = {
-        "profile": profile,
+        "requested_profile": requested_profile,
+        "resolved_profile": resolved_profile,
         "uses_repo_profile": uses_repo_profile,
         "has_phase_overrides": bool(phase_overrides),
     }
 
     return config_path, {
-        "profile": profile,
+        "profile": requested_profile,
+        "resolved_profile": resolved_profile,
         "config_name": config_name,
         "phase_overrides": phase_overrides,
         "synced_profile_path": str(synced_profile_path) if synced_profile_path else None,
@@ -171,6 +174,7 @@ def run_train(scene_dir: Path, cfg: dict, name: str = "scene"):
 
     profile_metadata = {
         "profile": training_selection["profile"],
+        "resolved_profile": training_selection["resolved_profile"],
         "config_name": training_selection["config_name"],
         "framework_path": str(framework),
         "framework_config_path": str(config_file),
