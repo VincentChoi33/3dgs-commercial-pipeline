@@ -46,6 +46,18 @@ def test_run_select_writes_selection_artifacts(tmp_path):
     metrics = json.loads((scene_dir / "metadata" / "selection_metrics.json").read_text())
     assert metrics["selected_count"] >= 3
     assert metrics["fallback_used"] is False
+    for frame in metrics["selected_frames"]:
+        assert "overlap_novelty" in frame
+        assert "baseline_diversity" in frame
+        assert "coverage_signal" in frame
+        assert frame["total_score"] >= (
+            frame["blur_score"]
+            + (frame["temporal_spacing"] * 25.0)
+            + (frame["overlap_novelty"] * 20.0)
+            + (frame["baseline_diversity"] * 20.0)
+            + (frame["coverage_signal"] * 50.0)
+            + (frame["pose_confidence"] * 10.0)
+        )
 
     coverage = json.loads((scene_dir / "metadata" / "coverage_summary.json").read_text())
     assert "novelty_mean" in coverage
@@ -92,6 +104,9 @@ def test_run_select_writes_revisit_candidates_when_pose_metadata_exists(tmp_path
     (scene_dir / "metadata" / "input_poses.json").write_text(json.dumps(poses))
 
     run_select(scene_dir, {"keep_ratio": 0.5})
+
+    metrics = json.loads((scene_dir / "metadata" / "selection_metrics.json").read_text())
+    assert any(frame["baseline_diversity"] > 0 for frame in metrics["selected_frames"])
 
     revisit_path = scene_dir / "metadata" / "revisit_candidates.json"
     assert revisit_path.exists()
