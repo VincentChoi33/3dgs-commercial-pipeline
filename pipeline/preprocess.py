@@ -33,6 +33,8 @@ def filter_blurry_frames(images_dir: Path, percentile: int = 20) -> list[Path]:
     scores = []
     for f in files:
         img = cv2.imread(str(f))
+        if img is None:
+            raise ValueError(f"Unable to read image: {f}")
         scores.append((f, compute_blur_score(img)))
 
     threshold = np.percentile([s for _, s in scores], percentile)
