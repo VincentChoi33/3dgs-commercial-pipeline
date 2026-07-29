@@ -1,0 +1,12 @@
+trainer:
+  max_steps: 45000
+model:
+  metric:
+    init_args:
+      lambda_dssim: 0.2
+pipeline:
+  phases:
+    - name: geometry
+      steps: 30000
+    - name: appearance
+      steps: 15000
