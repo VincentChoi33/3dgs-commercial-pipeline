@@ -1,33 +1,35 @@
-import pytest
-import numpy as np
 import torch
-from pathlib import Path
+
+
+def _make_test_checkpoint(path, gaussian_count=100):
+    state_dict = {
+        "gaussian_model.gaussians.means": torch.randn(gaussian_count, 3),
+        "gaussian_model.gaussians.shs_dc": torch.randn(gaussian_count, 1, 3),
+        "gaussian_model.gaussians.shs_rest": torch.randn(gaussian_count, 15, 3),
+        "gaussian_model.gaussians.opacities": torch.randn(gaussian_count, 1),
+        "gaussian_model.gaussians.scales": torch.randn(gaussian_count, 3),
+        "gaussian_model.gaussians.rotations": torch.randn(gaussian_count, 4),
+    }
+    torch.save({"state_dict": state_dict}, path)
+    return path
 
 
 def test_ckpt_to_ply(tmp_path):
     from pipeline.export import ckpt_to_ply
 
-    N = 100
-    state_dict = {
-        "gaussian_model.gaussians.means": torch.randn(N, 3),
-        "gaussian_model.gaussians.shs_dc": torch.randn(N, 1, 3),
-        "gaussian_model.gaussians.shs_rest": torch.randn(N, 15, 3),
-        "gaussian_model.gaussians.opacities": torch.randn(N, 1),
-        "gaussian_model.gaussians.scales": torch.randn(N, 3),
-        "gaussian_model.gaussians.rotations": torch.randn(N, 4),
-    }
-    ckpt_path = tmp_path / "test.ckpt"
-    torch.save({"state_dict": state_dict}, ckpt_path)
-
+    ckpt_path = _make_test_checkpoint(tmp_path / "test.ckpt")
     out_ply = tmp_path / "output.ply"
-    ckpt_to_ply(ckpt_path, out_ply)
+    report = ckpt_to_ply(ckpt_path, out_ply)
 
     assert out_ply.exists()
     assert out_ply.stat().st_size > 0
 
     from plyfile import PlyData
     ply = PlyData.read(str(out_ply))
-    assert ply.elements[0].count == N
+    assert ply.elements[0].count == 100
+    assert report["gaussian_count"] == 100
+    assert report["output_path"] == str(out_ply)
+    assert report["output_size_bytes"] == out_ply.stat().st_size
 
 
 def test_find_best_checkpoint(tmp_path):
@@ -43,3 +45,25 @@ def test_find_best_checkpoint(tmp_path):
 
     best = find_best_checkpoint(tmp_path / "training", target_step=7000)
     assert "6999" in best.name
+
+
+def test_run_export_writes_export_report(tmp_path):
+    from pipeline.export import run_export
+    from pipeline.metadata import read_optional_json
+
+    ckpt_dir = tmp_path / "training" / "scene" / "checkpoints"
+    ckpt_dir.mkdir(parents=True)
+    chosen_ckpt = _make_test_checkpoint(ckpt_dir / "epoch=49-step=6999.ckpt", gaussian_count=12)
+    _make_test_checkpoint(ckpt_dir / "epoch=212-step=29999.ckpt", gaussian_count=20)
+
+    output = run_export(tmp_path, {"step": 7000})
+    report = read_optional_json(tmp_path / "metadata" / "export_report.json")
+
+    assert output == tmp_path / "full.ply"
+    assert report == {
+        "chosen_checkpoint": str(chosen_ckpt),
+        "target_step": 7000,
+        "gaussian_count": 12,
+        "output_path": str(output),
+        "output_size_bytes": output.stat().st_size,
+    }
