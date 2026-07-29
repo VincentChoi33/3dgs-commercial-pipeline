@@ -1,3 +1,5 @@
+import pytest
+
 from pipeline.config import load_config, merge_configs
 
 
@@ -113,3 +115,45 @@ def test_load_custom_config_maps_legacy_sfm_to_reconstruct(tmp_path):
     assert cfg["reconstruct"]["pairing"]["strategy"] == "retrieval"
     assert cfg["sfm"]["matcher"] == "superglue"
     assert cfg["sfm"]["pairing"]["strategy"] == "retrieval"
+
+
+
+@pytest.mark.parametrize(
+    ("config_text", "expected_path"),
+    [
+        ("reconstruct: null\n", "reconstruct"),
+        ("train: 1\n", "train"),
+    ],
+)
+def test_load_custom_config_rejects_malformed_required_sections(
+    tmp_path, config_text, expected_path
+):
+    custom = tmp_path / "custom.yaml"
+    custom.write_text(config_text)
+
+    with pytest.raises(ValueError, match=rf"Config section '{expected_path}' must be a mapping"):
+        load_config(custom)
+
+
+
+def test_load_custom_config_rejects_malformed_reconstruct_pairing(tmp_path):
+    custom = tmp_path / "custom.yaml"
+    custom.write_text(
+        "reconstruct:\n"
+        "  pairing: null\n"
+    )
+
+    with pytest.raises(ValueError, match="Config section 'reconstruct.pairing' must be a mapping"):
+        load_config(custom)
+
+
+
+def test_load_custom_config_rejects_malformed_train_phase_overrides(tmp_path):
+    custom = tmp_path / "custom.yaml"
+    custom.write_text(
+        "train:\n"
+        "  phase_overrides: 1\n"
+    )
+
+    with pytest.raises(ValueError, match="Config section 'train.phase_overrides' must be a mapping"):
+        load_config(custom)

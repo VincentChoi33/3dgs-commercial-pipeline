@@ -1,6 +1,7 @@
 """YAML config loading with defaults merging."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import yaml
@@ -10,6 +11,13 @@ _LEGACY_SECTION_ALIASES = {
     "preprocess": "ingest",
     "sfm": "reconstruct",
 }
+_REQUIRED_MAPPING_SECTIONS = (
+    "ingest",
+    "select",
+    "reconstruct",
+    "train",
+    "report",
+)
 
 
 def merge_configs(base: dict, override: dict) -> dict:
@@ -40,6 +48,20 @@ def _add_compat_aliases(cfg: dict) -> dict:
     return compatible
 
 
+def _require_mapping(value: object, path: str) -> None:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"Config section '{path}' must be a mapping")
+
+
+def _validate_config_shape(cfg: dict) -> dict:
+    for section in _REQUIRED_MAPPING_SECTIONS:
+        _require_mapping(cfg.get(section), section)
+
+    _require_mapping(cfg["reconstruct"].get("pairing"), "reconstruct.pairing")
+    _require_mapping(cfg["train"].get("phase_overrides"), "train.phase_overrides")
+    return cfg
+
+
 def load_config(config_path: Path | None = None) -> dict:
     """Load config: default.yaml merged with optional custom config."""
     with open(_DEFAULT_CONFIG) as f:
@@ -52,4 +74,4 @@ def load_config(config_path: Path | None = None) -> dict:
             custom = yaml.safe_load(f) or {}
         cfg = merge_configs(cfg, _expand_legacy_sections(custom))
 
-    return _add_compat_aliases(cfg)
+    return _add_compat_aliases(_validate_config_shape(cfg))
