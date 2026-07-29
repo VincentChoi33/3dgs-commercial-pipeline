@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "evidence_status": "historical_reported",
+  "source_revision": null,
+  "hardware": {
+    "gpu": "NVIDIA RTX 4090"
+  },
+  "training": {
+    "max_steps": 30000,
+    "renderer": "GSplatV1Renderer"
+  },
+  "limitations": [
+    "The original benchmark did not record a complete environment lock.",
+    "The original benchmark did not record the exact source commit.",
+    "The scenes are not redistributed by this repository."
+  ],
+  "scenes": [
+    {
+      "name": "MeetingRoom",
+      "input_images": 69,
+      "capture_device": "iPhone 13 mini",
+      "quality": {
+        "psnr": 28.25,
+        "ssim": 0.807,
+        "lpips": 0.497,
+        "gaussians": 1202575
+      },
+      "artifacts": [
+        {
+          "variant": "original",
+          "size_mb": 271,
+          "size_percent": 100,
+          "psnr": 28.25
+        },
+        {
+          "variant": "sh0_f16",
+          "size_mb": 61,
+          "size_percent": 22.5,
+          "psnr": 23.27
+        },
+        {
+          "variant": "sh0_f16_ds50",
+          "size_mb": 30,
+          "size_percent": 11.1,
+          "psnr": 21.52
+        }
+      ]
+    },
+    {
+      "name": "Office",
+      "input_images": 416,
+      "capture_device": "iPhone 13 mini",
+      "quality": {
+        "psnr": 26.07,
+        "ssim": 0.813,
+        "lpips": 0.46,
+        "gaussians": 962572
+      },
+      "artifacts": [
+        {
+          "variant": "original",
+          "size_mb": 217,
+          "size_percent": 100,
+          "psnr": 26.07
+        },
+        {
+          "variant": "sh0_f16",
+          "size_mb": 45,
+          "size_percent": 20.7,
+          "psnr": 23.82
+        },
+        {
+          "variant": "sh0_f16_ds50",
+          "size_mb": 22,
+          "size_percent": 10.1,
+          "psnr": 21.79
+        }
+      ]
+    }
+  ]
+}

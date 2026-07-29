@@ -6,7 +6,7 @@ build/
 *.egg-info/
 .DS_Store
 *.ply
-results/
+/results/
 data/
 *.h5
 .worktrees/
