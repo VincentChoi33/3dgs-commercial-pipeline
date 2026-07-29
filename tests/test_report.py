@@ -122,3 +122,37 @@ def test_run_report_writes_decision_trace_for_found_artifacts_and_fallbacks(tmp_
     assert trace["decisions"]["malformed_pose_handling_present"] is False
     assert trace["decisions"]["pose_prior_rejection_reason"] == "low_confidence_pose_priors"
     assert trace["decisions"]["reconstruction_fallback_reason"] == "low_confidence_pose_priors"
+
+
+def test_run_report_resolves_relative_artifact_paths_against_scene_dir(tmp_path):
+    metadata_dir = tmp_path / "metadata"
+    write_json_atomic(
+        metadata_dir / "reconstruction_metrics.json",
+        {
+            "fallback_used": False,
+            "outputs": {"sparse_model_dir": "sparse/0"},
+        },
+    )
+    write_json_atomic(
+        metadata_dir / "compression_report.json",
+        {
+            "output_files": [
+                {"path": "compressed.ply", "gaussian_count": 12345, "output_size_bytes": 256},
+                {"path": "compressed_ds_2.ply", "gaussian_count": 6789, "output_size_bytes": 128},
+            ]
+        },
+    )
+
+    (tmp_path / "sparse" / "0").mkdir(parents=True)
+    (tmp_path / "compressed.ply").write_text("ply")
+    (tmp_path / "compressed_ds_2.ply").write_text("ply")
+
+    run_report(tmp_path, {"write_summary": True})
+    trace = json.loads((tmp_path / "report" / "decision_trace.json").read_text())
+
+    assert trace["artifacts"] == {
+        "full_ply": False,
+        "compressed_ply": True,
+        "downsampled_ply": True,
+        "sparse_model": True,
+    }

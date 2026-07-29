@@ -75,17 +75,25 @@ def _collect_metrics(scene_dir: Path) -> tuple[dict[str, Any], dict[str, bool], 
 
 
 def _artifact_flags(scene_dir: Path, payloads: dict[str, Any]) -> dict[str, bool]:
+    def _resolve_scene_path(raw_path: str) -> Path:
+        candidate = Path(raw_path)
+        return candidate if candidate.is_absolute() else scene_dir / candidate
+
     compression_report = payloads.get("compression_report") if isinstance(payloads.get("compression_report"), dict) else {}
     output_files = compression_report.get("output_files") if isinstance(compression_report, dict) else None
     compressed_paths = []
     if isinstance(output_files, list):
-        compressed_paths = [Path(entry["path"]) for entry in output_files if isinstance(entry, dict) and isinstance(entry.get("path"), str)]
+        compressed_paths = [
+            _resolve_scene_path(entry["path"])
+            for entry in output_files
+            if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+        ]
 
     reconstruction_metrics = payloads.get("reconstruction_metrics") if isinstance(payloads.get("reconstruction_metrics"), dict) else {}
     outputs = reconstruction_metrics.get("outputs") if isinstance(reconstruction_metrics, dict) else None
     sparse_model_dir = None
     if isinstance(outputs, dict) and isinstance(outputs.get("sparse_model_dir"), str):
-        sparse_model_dir = Path(outputs["sparse_model_dir"])
+        sparse_model_dir = _resolve_scene_path(outputs["sparse_model_dir"])
 
     return {
         "full_ply": (scene_dir / "full.ply").exists(),
