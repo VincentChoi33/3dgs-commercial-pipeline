@@ -123,6 +123,8 @@ def test_load_custom_config_maps_legacy_sfm_to_reconstruct(tmp_path):
     [
         ("reconstruct: null\n", "reconstruct"),
         ("train: 1\n", "train"),
+        ("sfm: 1\n", "sfm"),
+        ("preprocess: null\n", "preprocess"),
     ],
 )
 def test_load_custom_config_rejects_malformed_required_sections(
@@ -157,3 +159,22 @@ def test_load_custom_config_rejects_malformed_train_phase_overrides(tmp_path):
 
     with pytest.raises(ValueError, match="Config section 'train.phase_overrides' must be a mapping"):
         load_config(custom)
+
+
+
+def test_load_config_keeps_compat_aliases_isolated(tmp_path):
+    custom = tmp_path / "custom.yaml"
+    custom.write_text(
+        "sfm:\n"
+        "  matcher: superglue\n"
+        "preprocess:\n"
+        "  fps: 4\n"
+    )
+
+    cfg = load_config(custom)
+
+    cfg["sfm"]["matcher"] = "changed"
+    cfg["preprocess"]["fps"] = 10
+
+    assert cfg["reconstruct"]["matcher"] == "superglue"
+    assert cfg["ingest"]["fps"] == 4

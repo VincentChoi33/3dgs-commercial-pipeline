@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from pathlib import Path
 
 import yaml
@@ -35,6 +36,7 @@ def _expand_legacy_sections(cfg: dict) -> dict:
     expanded = cfg.copy()
     for legacy_key, canonical_key in _LEGACY_SECTION_ALIASES.items():
         if legacy_key in expanded:
+            _require_mapping(expanded[legacy_key], legacy_key)
             expanded[canonical_key] = merge_configs(
                 expanded.get(canonical_key, {}), expanded[legacy_key]
             )
@@ -44,7 +46,7 @@ def _expand_legacy_sections(cfg: dict) -> dict:
 def _add_compat_aliases(cfg: dict) -> dict:
     compatible = cfg.copy()
     for legacy_key, canonical_key in _LEGACY_SECTION_ALIASES.items():
-        compatible[legacy_key] = compatible.get(canonical_key, {})
+        compatible[legacy_key] = deepcopy(compatible.get(canonical_key, {}))
     return compatible
 
 
