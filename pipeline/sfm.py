@@ -12,6 +12,8 @@ from pipeline.metadata import ensure_metadata_dir, read_optional_json, write_jso
 
 log = logging.getLogger("pipeline.sfm")
 
+_POSE_CONFIDENCE_THRESHOLD = 0.5
+
 _RECONSTRUCT_DEFAULTS = {
     "feature": "superpoint_max",
     "matcher": "superpoint+lightglue",
@@ -114,6 +116,21 @@ def _read_image_count(images_dir: Path) -> int:
     return len([path for path in images_dir.iterdir() if path.is_file()])
 
 
+def _read_binary_count(path: Path) -> int | None:
+    if not path.exists():
+        return None
+    with open(path, "rb") as handle:
+        return struct.unpack("<Q", handle.read(8))[0]
+
+
+def _read_reconstruction_counts(model_dir: Path) -> dict[str, int | None]:
+    return {
+        "registered_images": _read_binary_count(model_dir / "images.bin"),
+        "camera_count": _read_binary_count(model_dir / "cameras.bin"),
+        "point3d_count": _read_binary_count(model_dir / "points3D.bin"),
+    }
+
+
 def _normalize_pair(image_a: str, image_b: str) -> tuple[str, str] | None:
     if image_a == image_b:
         return None
@@ -202,6 +219,10 @@ def _load_pose_priors(metadata_dir: Path, image_names: list[str]) -> dict[str, A
         "reason": "missing",
         "pair_strategy": None,
         "matched_frame_count": 0,
+        "usable_frame_count": 0,
+        "rejected_frame_count": 0,
+        "ignored_frame_count": 0,
+        "rejected_images": [],
         "pose_pairs_added": [],
     }
     if not pose_path.exists():
@@ -220,34 +241,58 @@ def _load_pose_priors(metadata_dir: Path, image_names: list[str]) -> dict[str, A
         return {"entries": {}, "report": base_report, "fallback_used": True}
 
     valid_entries = {}
+    rejected_images: list[dict[str, Any]] = []
+    ignored_frame_count = 0
     for frame in frames:
         if not isinstance(frame, dict):
+            ignored_frame_count += 1
             continue
         image_name = frame.get("image_name")
         translation = frame.get("translation")
         if not isinstance(image_name, str) or image_name not in image_names:
+            ignored_frame_count += 1
             continue
         if not (isinstance(translation, list) and len(translation) >= 3):
+            rejected_images.append({"image_name": image_name, "reason": "invalid_translation"})
             continue
         try:
             coords = [float(translation[index]) for index in range(3)]
         except (TypeError, ValueError):
+            rejected_images.append({"image_name": image_name, "reason": "invalid_translation"})
             continue
         confidence = frame.get("confidence", 1.0)
         try:
             confidence_value = float(confidence)
         except (TypeError, ValueError):
             confidence_value = 0.0
+        if confidence_value < _POSE_CONFIDENCE_THRESHOLD:
+            rejected_images.append(
+                {
+                    "image_name": image_name,
+                    "reason": "low_confidence",
+                    "confidence": confidence_value,
+                }
+            )
+            continue
         valid_entries[image_name] = {"translation": coords, "confidence": confidence_value}
 
+    base_report["matched_frame_count"] = len(valid_entries) + len(rejected_images)
+    base_report["usable_frame_count"] = len(valid_entries)
+    base_report["rejected_frame_count"] = len(rejected_images)
+    base_report["ignored_frame_count"] = ignored_frame_count
+    base_report["rejected_images"] = rejected_images
+
     if len(valid_entries) < 2:
-        log.warning("Pose priors in %s were unusable; continuing with standard reconstruction", pose_path)
-        base_report["reason"] = "insufficient_pose_priors"
-        base_report["matched_frame_count"] = len(valid_entries)
+        if rejected_images and not valid_entries:
+            log.warning("Pose priors in %s were all low-confidence; continuing with standard reconstruction", pose_path)
+            base_report["status"] = "rejected"
+            base_report["reason"] = "low_confidence_pose_priors"
+        else:
+            log.warning("Pose priors in %s were unusable; continuing with standard reconstruction", pose_path)
+            base_report["reason"] = "insufficient_pose_priors"
         return {"entries": {}, "report": base_report, "fallback_used": True}
 
     base_report["reason"] = "available"
-    base_report["matched_frame_count"] = len(valid_entries)
     return {"entries": valid_entries, "report": base_report, "fallback_used": False}
 
 
@@ -263,14 +308,10 @@ def _build_pose_assisted_pairs(image_names: list[str], pose_entries: dict[str, d
 
     for image_name in ordered:
         current = pose_entries[image_name]
-        if current["confidence"] < 0.5:
-            continue
         best_name = None
         best_distance = None
         for candidate in ordered:
             if candidate == image_name:
-                continue
-            if pose_entries[candidate]["confidence"] < 0.5:
                 continue
             if abs(indexed_names[candidate] - indexed_names[image_name]) <= max(window, 1):
                 continue
@@ -427,6 +468,7 @@ def run_reconstruct(images_dir: Path, output_dir: Path, cfg: dict):
 
     metrics = {
         "image_count": image_count,
+        **_read_reconstruction_counts(target),
         "selected_options": selected_options,
         "pose_priors_affected_reconstruction": bool(pose_report["used"]),
         "fallback_used": bool(fallback_used),

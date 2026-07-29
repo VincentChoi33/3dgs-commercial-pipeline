@@ -178,6 +178,9 @@ def test_run_reconstruct_writes_metrics_and_pose_report_with_pose_aware_pairs(tm
     assert result == scene_dir / "sparse" / "0"
     metrics = json.loads((scene_dir / "metadata" / "reconstruction_metrics.json").read_text())
     assert metrics["image_count"] == 3
+    assert metrics["registered_images"] == 3
+    assert metrics["camera_count"] == 1
+    assert metrics["point3d_count"] == 12
     assert metrics["selected_options"]["feature"] == "superpoint_max"
     assert metrics["selected_options"]["pairing"]["strategy"] == "pose-assisted-sequential+retrieval"
     assert metrics["pose_priors_affected_reconstruction"] is True
@@ -216,6 +219,42 @@ def test_run_reconstruct_warns_and_falls_back_on_malformed_pose_priors(tmp_path,
     assert report["reason"] == "malformed_pose_priors"
     assert report["used"] is False
     assert "Failed to load pose priors" in caplog.text
+
+
+def test_run_reconstruct_warns_and_falls_back_on_low_confidence_pose_priors(tmp_path, monkeypatch, caplog):
+    from pipeline.sfm import run_reconstruct
+
+    scene_dir, sparse_root = _build_scene(tmp_path, image_count=2)
+    poses = {
+        "frames": [
+            {"image_name": "frame_0000.jpg", "translation": [0.0, 0.0, 0.0], "confidence": 0.2},
+            {"image_name": "frame_0001.jpg", "translation": [0.1, 0.0, 0.0], "confidence": 0.3},
+        ]
+    }
+    (scene_dir / "metadata" / "input_poses.json").write_text(json.dumps(poses))
+
+    recorder = _Recorder(sparse_root)
+    recorder.install(monkeypatch)
+    monkeypatch.setattr("pipeline.sfm.convert_cameras_to_pinhole", lambda _sparse_dir: None)
+
+    run_reconstruct(scene_dir / "images", scene_dir, {})
+
+    metrics = json.loads((scene_dir / "metadata" / "reconstruction_metrics.json").read_text())
+    assert metrics["pose_priors_affected_reconstruction"] is False
+    assert metrics["fallback_used"] is True
+    assert metrics["registered_images"] == 2
+
+    report = json.loads((scene_dir / "metadata" / "pose_alignment_report.json").read_text())
+    assert report["status"] == "rejected"
+    assert report["reason"] == "low_confidence_pose_priors"
+    assert report["used"] is False
+    assert report["usable_frame_count"] == 0
+    assert report["rejected_frame_count"] == 2
+    assert report["rejected_images"] == [
+        {"image_name": "frame_0000.jpg", "reason": "low_confidence", "confidence": 0.2},
+        {"image_name": "frame_0001.jpg", "reason": "low_confidence", "confidence": 0.3},
+    ]
+    assert "all low-confidence" in caplog.text
 
 
 def test_run_reconstruct_keeps_undistort_independent_from_pinhole_conversion(tmp_path, monkeypatch):
