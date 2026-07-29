@@ -157,6 +157,29 @@ def test_parser_exposes_new_and_compatibility_commands():
     assert {"preprocess", "sfm"}.issubset(commands)
 
 
+def test_readme_documents_existing_golden_path_commands():
+    parser = pipeline_cli.build_parser()
+    subparsers_action = next(
+        action for action in parser._actions if getattr(action, "dest", None) == "command"
+    )
+    commands = set(subparsers_action.choices)
+    readme = (_REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    documented_commands = {
+        "run": "python3 pipeline.py run --input ./photos --output ./output --name office",
+        "ingest": "python3 pipeline.py ingest -i video.mp4 -o ./output/office",
+        "select": "python3 pipeline.py select -o ./output/office",
+        "reconstruct": "python3 pipeline.py reconstruct -i ./output/office/selected_images -o ./output/office",
+        "report": "python3 pipeline.py report -o ./output/office",
+        "preprocess": "python3 pipeline.py preprocess -i video.mp4 -o ./output/office",
+        "sfm": "python3 pipeline.py sfm -i ./output/office/selected_images -o ./output/office",
+    }
+
+    for command, snippet in documented_commands.items():
+        assert command in commands
+        assert snippet in readme
+
+
 def test_report_command_uses_placeholder_when_report_module_missing(tmp_path):
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir(parents=True)
