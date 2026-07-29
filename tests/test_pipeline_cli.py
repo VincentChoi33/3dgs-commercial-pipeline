@@ -162,22 +162,40 @@ def test_readme_documents_existing_golden_path_commands():
     subparsers_action = next(
         action for action in parser._actions if getattr(action, "dest", None) == "command"
     )
-    commands = set(subparsers_action.choices)
+    commands = subparsers_action.choices
     readme = (_REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
     documented_commands = {
-        "run": "python3 pipeline.py run --input ./photos --output ./output --name office",
-        "ingest": "python3 pipeline.py ingest -i video.mp4 -o ./output/office",
-        "select": "python3 pipeline.py select -o ./output/office",
-        "reconstruct": "python3 pipeline.py reconstruct -i ./output/office/selected_images -o ./output/office",
-        "report": "python3 pipeline.py report -o ./output/office",
-        "preprocess": "python3 pipeline.py preprocess -i video.mp4 -o ./output/office",
-        "sfm": "python3 pipeline.py sfm -i ./output/office/selected_images -o ./output/office",
+        "run": ["--input", "--output", "--name"],
+        "ingest": ["-i", "-o"],
+        "select": ["-o"],
+        "reconstruct": ["-i", "-o"],
+        "report": ["-o"],
+        "preprocess": ["-i", "-o"],
+        "sfm": ["-i", "-o"],
     }
 
-    for command, snippet in documented_commands.items():
+    for command, expected_flags in documented_commands.items():
         assert command in commands
-        assert snippet in readme
+
+        lines = [
+            line.strip()
+            for line in readme.splitlines()
+            if line.strip().startswith(f"python3 pipeline.py {command} ")
+        ]
+        assert lines, f"README should document the {command} command"
+
+        parser_action = commands[command]
+        option_strings = {
+            option
+            for action in parser_action._actions
+            for option in getattr(action, "option_strings", [])
+        }
+        for flag in expected_flags:
+            assert flag in option_strings
+            assert any(flag in line.split() for line in lines), (
+                f"README should show {flag} for the {command} command"
+            )
 
 
 def test_report_command_uses_placeholder_when_report_module_missing(tmp_path):

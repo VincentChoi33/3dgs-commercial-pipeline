@@ -5,7 +5,7 @@ An end-to-end **commercially licensable** 3D Gaussian Splatting pipeline for con
 ## Highlights
 
 - End-to-end workflow: ingest → select → reconstruct → train → export → compress → report
-- Default `train.profile: default` keeps the quality-first path reproducible without extra flags
+- Default `train.profile: default` is the repo's quality-first preset, keeping the high-quality path reproducible without extra flags
 - Optional pose priors can be supplied at ingest time and are used downstream when valid
 - Each scene now records stage metadata plus a final report directory for smoke-checkable outputs
 - Commercially usable dependency stack built around COLMAP, LightGlue, gaussian-splatting-lightning, and gsplat
@@ -70,7 +70,7 @@ python3 pipeline.py select -o ./output/office
 # 3. Reconstruct: LightGlue + COLMAP reconstruction
 python3 pipeline.py reconstruct -i ./output/office/selected_images -o ./output/office
 
-# 4. Train: 3DGS with the default quality profile
+# 4. Train: 3DGS with the repo's quality-first `train.profile: default` preset
 python3 pipeline.py train -o ./output/office -n office
 
 # 5. Export: checkpoint → full PLY
@@ -135,7 +135,7 @@ Default settings in `configs/default.yaml`:
 | `ingest.pose_path` | null | Optional external pose priors JSON |
 | `select.keep_ratio` | 1.0 | Keep all candidate frames unless configured otherwise |
 | `reconstruct.matcher` | lightglue | Feature matcher (lightglue/superglue) |
-| `train.profile` | default | Default quality-first training profile |
+| `train.profile` | default | Repo quality-first training preset (this key is the profile selector, not `quality`) |
 | `train.max_steps` | 30000 | Training iterations |
 | `compress.sh_degree` | 0 | Target SH degree (0=DC only) |
 | `compress.downsample` | 0.5 | Keep ratio (0.5 = 50%) |
