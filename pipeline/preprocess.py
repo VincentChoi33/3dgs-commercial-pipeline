@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from pipeline.ingest import extract_frames as ingest_extract_frames
 from pipeline.ingest import is_video
 
 log = logging.getLogger("pipeline.preprocess")
@@ -18,19 +19,10 @@ def compute_blur_score(image: np.ndarray) -> float:
 
 
 def extract_frames(video_path: Path, output_dir: Path, fps: int = 2) -> Path:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "ffmpeg", "-i", str(video_path),
-        "-vf", f"fps={fps}",
-        "-q:v", "1",
-        str(output_dir / "frame_%04d.jpg"),
-        "-y",
-    ]
-    log.info(f"Extracting frames at {fps} fps: {video_path}")
-    subprocess.run(cmd, check=True, capture_output=True)
-    n = len(list(output_dir.glob("frame_*.jpg")))
-    log.info(f"Extracted {n} frames → {output_dir}")
-    return output_dir
+    extracted_dir = ingest_extract_frames(video_path, output_dir, fps=fps)
+    n = len(list(extracted_dir.glob("frame_*.jpg")))
+    log.info(f"Extracted {n} frames → {extracted_dir}")
+    return extracted_dir
 
 
 def filter_blurry_frames(images_dir: Path, percentile: int = 20) -> list[Path]:

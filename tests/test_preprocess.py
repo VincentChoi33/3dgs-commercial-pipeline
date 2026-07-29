@@ -40,6 +40,31 @@ def test_filter_blurry_frames(tmp_path):
     assert len(kept) == 8
 
 
+def test_extract_frames_delegates_to_ingest(monkeypatch, tmp_path):
+    from pipeline import preprocess
+
+    called = {}
+
+    def fake_extract_frames(video_path, output_dir, fps=2):
+        called["video_path"] = video_path
+        called["output_dir"] = output_dir
+        called["fps"] = fps
+        return output_dir
+
+    monkeypatch.setattr(preprocess, "ingest_extract_frames", fake_extract_frames)
+
+    video_path = tmp_path / "clip.mp4"
+    output_dir = tmp_path / "frames"
+    result = preprocess.extract_frames(video_path, output_dir, fps=5)
+
+    assert result == output_dir
+    assert called == {
+        "video_path": video_path,
+        "output_dir": output_dir,
+        "fps": 5,
+    }
+
+
 def test_run_preprocess_returns_selected_images_contract(tmp_path):
     from pipeline.preprocess import run_preprocess
     import cv2
