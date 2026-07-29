@@ -89,6 +89,47 @@ def _fallback_frames(scored_frames: list[dict], keep_count: int) -> list[dict]:
     return sorted(ranked[:keep_count], key=lambda frame: frame["frame_index"])
 
 
+def _build_revisit_candidates(scored_frames: list[dict], selected_frames: list[dict]) -> list[dict]:
+    candidates = [
+        {
+            "image_name": frame["image_name"],
+            "reason": "low_pose_confidence",
+            "pose_confidence": frame["pose_confidence"],
+        }
+        for frame in scored_frames
+        if frame["pose_confidence"] < 0.5
+    ]
+
+    selected_indices = {frame["frame_index"] for frame in selected_frames}
+    frame_by_index = {frame["frame_index"]: frame for frame in scored_frames}
+    frame_count = len(scored_frames)
+    sorted_selected = sorted(selected_indices)
+    segment_starts = [0, *[index + 1 for index in sorted_selected]]
+    segment_ends = [*[index - 1 for index in sorted_selected], frame_count - 1]
+    existing_names = {candidate["image_name"] for candidate in candidates}
+
+    for start, end in zip(segment_starts, segment_ends):
+        if end - start + 1 < 2:
+            continue
+        candidate_index = (start + end) // 2
+        if candidate_index in selected_indices:
+            continue
+        candidate_frame = frame_by_index.get(candidate_index)
+        if candidate_frame is None or candidate_frame["image_name"] in existing_names:
+            continue
+        candidates.append(
+            {
+                "image_name": candidate_frame["image_name"],
+                "reason": "coverage_gap",
+                "gap_start_index": start,
+                "gap_end_index": end,
+            }
+        )
+        existing_names.add(candidate_frame["image_name"])
+
+    return candidates
+
+
 def run_select(scene_dir: Path, cfg: dict) -> Path:
     frames = _load_frames(scene_dir)
     pose_map = _load_pose_map(scene_dir)
@@ -152,18 +193,8 @@ def run_select(scene_dir: Path, cfg: dict) -> Path:
     }
     write_json_atomic(metadata_dir / "coverage_summary.json", coverage_summary)
 
-    if pose_map:
-        revisit_candidates = {
-            "candidates": [
-                {
-                    "image_name": frame["image_name"],
-                    "reason": "low_pose_confidence",
-                    "pose_confidence": frame["pose_confidence"],
-                }
-                for frame in scored_frames
-                if frame["pose_confidence"] < 0.5
-            ]
-        }
+    revisit_candidates = {"candidates": _build_revisit_candidates(scored_frames, selected)}
+    if revisit_candidates["candidates"]:
         write_json_atomic(metadata_dir / "revisit_candidates.json", revisit_candidates)
 
     return selected_dir

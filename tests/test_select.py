@@ -98,3 +98,17 @@ def test_run_select_writes_revisit_candidates_when_pose_metadata_exists(tmp_path
 
     revisit = json.loads(revisit_path.read_text())
     assert any(candidate["image_name"] == "frame_0002.jpg" for candidate in revisit["candidates"])
+
+
+def test_run_select_writes_revisit_candidates_without_pose_metadata(tmp_path):
+    from pipeline.select import run_select
+
+    scene_dir = _build_scene(tmp_path, count=6)
+
+    run_select(scene_dir, {"keep_ratio": 0.34})
+
+    revisit_path = scene_dir / "metadata" / "revisit_candidates.json"
+    assert revisit_path.exists()
+
+    revisit = json.loads(revisit_path.read_text())
+    assert any(candidate["reason"] == "coverage_gap" for candidate in revisit["candidates"])
