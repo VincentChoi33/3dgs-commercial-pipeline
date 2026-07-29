@@ -22,6 +22,11 @@ _REPO_PROFILES = {
     }
 }
 _STANDARD_METRIC_KEYS = ("psnr", "ssim", "lpips")
+_BACKEND_METRICS_FILENAMES = (
+    "eval_metrics.json",
+    "metrics.json",
+    "results.json",
+)
 
 
 def find_framework(cfg_path: str | None = None) -> Path:
@@ -85,6 +90,10 @@ def _resolve_training_config(framework: Path, cfg: dict, training_dir: Path) -> 
         synced_profile_path = config_path
     else:
         config_path = framework / "configs" / config_name
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Training config '{config_name}' for profile '{profile}' was not found at {config_path}"
+            )
 
     if phase_overrides:
         config_path = _write_phase_override_config(config_path, training_dir, phase_overrides)
@@ -113,12 +122,8 @@ def _extract_training_metrics(training_dir: Path) -> dict:
         "source_artifact": None,
     }
 
-    for candidate in (
-        training_dir / "eval_metrics.json",
-        training_dir / "training_metrics.json",
-        training_dir / "metrics.json",
-        training_dir / "results.json",
-    ):
+    for filename in _BACKEND_METRICS_FILENAMES:
+        candidate = training_dir / filename
         payload = read_optional_json(candidate)
         if not isinstance(payload, dict):
             continue

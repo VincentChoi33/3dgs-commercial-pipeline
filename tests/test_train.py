@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from pipeline.train import run_train
@@ -92,6 +93,49 @@ def test_run_train_writes_null_metrics_when_backend_metrics_are_missing(tmp_path
     assert metrics["ssim"] is None
     assert metrics["lpips"] is None
     assert metrics["source_artifact"] is None
+
+
+
+def test_run_train_ignores_normalized_metrics_artifact_without_backend_metrics(tmp_path, monkeypatch):
+    scene_dir = tmp_path / "scene"
+    framework = _make_framework(tmp_path)
+
+    def fake_run(cmd, env, cwd):
+        training_dir = scene_dir / "training"
+        training_dir.mkdir(parents=True, exist_ok=True)
+        (training_dir / "training_metrics.json").write_text(
+            json.dumps({"psnr": 99.0, "ssim": 0.99, "lpips": 0.01, "best_step": 1})
+        )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("pipeline.train.subprocess.run", fake_run)
+
+    run_train(scene_dir, {"framework_path": str(framework), "phase_overrides": {}}, name="scene")
+
+    metrics = json.loads((scene_dir / "metadata" / "training_metrics.json").read_text())
+
+    assert metrics["psnr"] is None
+    assert metrics["ssim"] is None
+    assert metrics["lpips"] is None
+    assert metrics["best_step"] is None
+    assert metrics["source_artifact"] is None
+
+
+
+def test_run_train_raises_clear_error_for_missing_config(tmp_path):
+    framework = _make_framework(tmp_path)
+    scene_dir = tmp_path / "scene"
+
+    with pytest.raises(FileNotFoundError, match="Training config 'missing.yaml' for profile 'default' was not found"):
+        run_train(
+            scene_dir,
+            {
+                "framework_path": str(framework),
+                "config": "missing.yaml",
+                "phase_overrides": {},
+            },
+            name="scene",
+        )
 
 
 
