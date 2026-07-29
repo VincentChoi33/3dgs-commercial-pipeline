@@ -72,8 +72,10 @@ def _compat_run_report(scene_dir: Path, cfg: dict):
 def _load_report_entrypoint():
     try:
         report_module = importlib.import_module("pipeline.report")
-    except ModuleNotFoundError:
-        return _compat_run_report
+    except ModuleNotFoundError as exc:
+        if exc.name == "pipeline.report":
+            return _compat_run_report
+        raise
     return getattr(report_module, "run_report", _compat_run_report)
 
 
