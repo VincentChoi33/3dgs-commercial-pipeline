@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 from plyfile import PlyData, PlyElement
 
+from pipeline.metadata import ensure_metadata_dir, write_json_atomic
+
 log = logging.getLogger("pipeline.compress")
 
 
@@ -121,8 +123,14 @@ def compress_ply(input_path: Path, output_path: Path, sh_degree=0, float16=True,
         )
 
     save_ply(output_path, xyz, f_dc, f_rest, opacity, scales, rots)
-    size_mb = output_path.stat().st_size / 1024 / 1024
+    output_size_bytes = output_path.stat().st_size
+    size_mb = output_size_bytes / 1024 / 1024
     log.info(f"  → {output_path} ({xyz.shape[0]:,} GS, {size_mb:.1f} MB)")
+    return {
+        "path": str(output_path),
+        "gaussian_count": int(xyz.shape[0]),
+        "output_size_bytes": int(output_size_bytes),
+    }
 
 
 def run_compress(input_ply: Path, output_dir: Path, cfg: dict):
@@ -130,14 +138,41 @@ def run_compress(input_ply: Path, output_dir: Path, cfg: dict):
     f16 = cfg.get("float16", True)
     thresh = cfg.get("prune_threshold", 0.005)
     ds = cfg.get("downsample", 0.5)
+    metadata_dir = ensure_metadata_dir(output_dir)
 
     log.info(f"Compressing {input_ply}")
 
-    compress_ply(input_ply, output_dir / "compressed.ply",
-                 sh_degree=sh, float16=f16, prune_threshold=thresh)
+    output_files = [
+        compress_ply(
+            input_ply,
+            output_dir / "compressed.ply",
+            sh_degree=sh,
+            float16=f16,
+            prune_threshold=thresh,
+        )
+    ]
 
     if ds is not None:
         pct = int(ds * 100)
-        compress_ply(input_ply, output_dir / f"compressed_ds{pct}.ply",
-                     sh_degree=sh, float16=f16, prune_threshold=thresh,
-                     downsample_ratio=ds)
+        output_files.append(
+            compress_ply(
+                input_ply,
+                output_dir / f"compressed_ds{pct}.ply",
+                sh_degree=sh,
+                float16=f16,
+                prune_threshold=thresh,
+                downsample_ratio=ds,
+            )
+        )
+
+    compression_report = {
+        "input_path": str(input_ply),
+        "compression_settings": {
+            "sh_degree": sh,
+            "float16": f16,
+            "prune_threshold": thresh,
+            "downsample": ds,
+        },
+        "output_files": output_files,
+    }
+    write_json_atomic(metadata_dir / "compression_report.json", compression_report)
