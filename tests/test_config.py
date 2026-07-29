@@ -137,6 +137,14 @@ def test_load_custom_config_rejects_malformed_required_sections(
         load_config(custom)
 
 
+@pytest.mark.parametrize("config_text", ["[]\n", "1\n", '"x"\n'])
+def test_load_custom_config_rejects_malformed_root_documents(tmp_path, config_text):
+    custom = tmp_path / "custom.yaml"
+    custom.write_text(config_text)
+
+    with pytest.raises(ValueError, match="Config section 'root' must be a mapping"):
+        load_config(custom)
+
 
 def test_load_custom_config_rejects_malformed_reconstruct_pairing(tmp_path):
     custom = tmp_path / "custom.yaml"
