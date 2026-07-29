@@ -4,10 +4,11 @@ An end-to-end **commercially licensable** 3D Gaussian Splatting pipeline for con
 
 ## Highlights
 
-- End-to-end workflow: preprocessing → SfM → training → export → compression
+- End-to-end workflow: ingest → select → reconstruct → train → export → compress → report
+- Default `train.profile: default` keeps the quality-first path reproducible without extra flags
+- Optional pose priors can be supplied at ingest time and are used downstream when valid
+- Each scene now records stage metadata plus a final report directory for smoke-checkable outputs
 - Commercially usable dependency stack built around COLMAP, LightGlue, gaussian-splatting-lightning, and gsplat
-- Config-driven CLI for both single-command runs and staged workflows
-- Reproducible benchmark section with quality / size trade-offs on two indoor scenes
 - Additional `scripts/experiment_*` utilities are preserved for research work and may require local path edits
 
 ## Pipeline Overview
@@ -48,50 +49,80 @@ docker run --gpus all -v /data:/data gsplat-pipeline run -i /data/video.mp4 -o /
 
 ### Usage
 
-**Full pipeline (video → compressed PLY):**
+**Full pipeline (video → reports + compressed PLY):**
 ```bash
-python pipeline.py run --input video.mp4 --output ./output --name office
+python3 pipeline.py run --input video.mp4 --output ./output --name office
 ```
 
-**Full pipeline (photos → compressed PLY):**
+**Full pipeline (photos → reports + compressed PLY):**
 ```bash
-python pipeline.py run --input ./photos/ --output ./output --name office
+python3 pipeline.py run --input ./photos --output ./output --name office
 ```
 
 **Stage-by-stage workflow:**
 ```bash
-# 1. Preprocess: extract frames + blur filter
-python pipeline.py preprocess -i video.mp4 -o ./output/office
+# 1. Ingest: normalize video or photos into images/ and metadata/
+python3 pipeline.py ingest -i video.mp4 -o ./output/office
 
-# 2. SfM: LightGlue + COLMAP reconstruction
-python pipeline.py sfm -i ./output/office/images -o ./output/office
+# 2. Select: choose useful views into selected_images/
+python3 pipeline.py select -o ./output/office
 
-# 3. Train: 3DGS with GSplatV1Renderer
-python pipeline.py train -o ./output/office -n office
+# 3. Reconstruct: LightGlue + COLMAP reconstruction
+python3 pipeline.py reconstruct -i ./output/office/selected_images -o ./output/office
 
-# 4. Export: checkpoint → full PLY
-python pipeline.py export -o ./output/office
+# 4. Train: 3DGS with the default quality profile
+python3 pipeline.py train -o ./output/office -n office
 
-# 5. Compress: prune + SH0 + f16 + downsample
-python pipeline.py compress -i ./output/office/full.ply -o ./output/office
+# 5. Export: checkpoint → full PLY
+python3 pipeline.py export -o ./output/office
+
+# 6. Compress: prune + SH0 + f16 + downsample
+python3 pipeline.py compress -i ./output/office/full.ply -o ./output/office
+
+# 7. Report: aggregate metadata and write report artifacts
+python3 pipeline.py report -o ./output/office
 ```
+
+**Optional pose priors at ingest time:**
+```yaml
+ingest:
+  pose_path: ./poses.json
+```
+
+If `ingest.pose_path` is set, the ingest stage copies that file into `metadata/input_poses.json`. Downstream stages use it when the pose data is valid; malformed or unusable priors are recorded in metadata instead of changing the CLI flow.
 
 **Custom config:**
 ```bash
-python pipeline.py --config my_config.yaml run -i video.mp4 -o ./output -n scene
+python3 pipeline.py --config my_config.yaml run -i video.mp4 -o ./output -n scene
 ```
+
+**Compatibility aliases:**
+```bash
+python3 pipeline.py preprocess -i video.mp4 -o ./output/office
+python3 pipeline.py sfm -i ./output/office/selected_images -o ./output/office
+```
+
+`preprocess` remains the old mental model for `ingest` + selection-ready capture prep, and `sfm` remains a compatibility alias for `reconstruct`. Use the new stage names for the golden path; keep the old names only when updating older notes or scripts.
 
 ### Output Structure
 
 ```
 output/office/
-├── images/              # Preprocessed frames
-├── sparse/0/            # SfM result (cameras.bin, images.bin, points3D.bin)
-├── training/            # Checkpoints and logs
-├── full.ply             # Full Gaussian PLY (~200 MB)
-├── compressed.ply       # SH0 + f16 (~40 MB, ~20%)
-└── compressed_ds50.ply  # SH0 + f16 + DS50% (~20 MB, ~10%)
+├── images/                    # Ingested frames or copied photos
+├── selected_images/           # View selection output for reconstruction
+├── sparse/0/                  # Reconstruction result (cameras.bin, images.bin, points3D.bin)
+├── training/                  # Checkpoints and logs
+├── metadata/                  # Stage metadata JSON files
+├── report/
+│   ├── metrics.json           # Aggregated stage metrics
+│   ├── decision_trace.json    # Artifact presence + pose / fallback decisions
+│   └── summary.md             # Human-readable report summary
+├── full.ply                   # Full Gaussian PLY (~200 MB)
+├── compressed.ply             # SH0 + f16 (~40 MB, ~20%)
+└── compressed_ds50.ply        # SH0 + f16 + DS50% (~20 MB, ~10%)
 ```
+
+`metadata/` typically contains `capture_info.json`, `selection_metrics.json`, `coverage_summary.json`, `reconstruction_metrics.json`, `training_profile.json`, `training_metrics.json`, `export_report.json`, and `compression_report.json`, plus pose-related files when pose input is provided.
 
 ### Configuration
 
@@ -99,13 +130,22 @@ Default settings in `configs/default.yaml`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `preprocess.fps` | 2 | Frame extraction rate for video |
-| `preprocess.blur_percentile` | 20 | Remove bottom N% blurriest frames |
-| `sfm.matcher` | lightglue | Feature matcher (lightglue/superglue) |
+| `ingest.fps` | 2 | Frame extraction rate for video |
+| `ingest.blur_filter` | true | Enable blur filtering during ingest |
+| `ingest.pose_path` | null | Optional external pose priors JSON |
+| `select.keep_ratio` | 1.0 | Keep all candidate frames unless configured otherwise |
+| `reconstruct.matcher` | lightglue | Feature matcher (lightglue/superglue) |
+| `train.profile` | default | Default quality-first training profile |
 | `train.max_steps` | 30000 | Training iterations |
-| `train.lambda_dssim` | 0.3 | SSIM loss weight |
 | `compress.sh_degree` | 0 | Target SH degree (0=DC only) |
 | `compress.downsample` | 0.5 | Keep ratio (0.5 = 50%) |
+| `report.write_summary` | true | Write `report/summary.md` |
+
+Compatibility config aliases still load:
+- `preprocess.*` maps to the ingest/select mental model used by older configs.
+- `sfm.*` maps to `reconstruct.*` for older reconstruction configs.
+
+For new configs and docs, prefer `ingest`, `select`, and `reconstruct`.
 
 ## Results
 
