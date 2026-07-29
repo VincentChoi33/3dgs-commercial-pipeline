@@ -162,3 +162,17 @@ def test_report_command_uses_placeholder_when_report_module_missing(tmp_path):
 
     assert report_dir == tmp_path / "report"
     assert (report_dir / "summary.txt").exists()
+
+
+def test_load_report_entrypoint_reraises_nested_module_not_found(monkeypatch):
+    def _raise_nested_missing(_module_name):
+        raise ModuleNotFoundError("missing nested dependency", name="markdown")
+
+    monkeypatch.setattr(pipeline_cli.importlib, "import_module", _raise_nested_missing)
+
+    try:
+        pipeline_cli._load_report_entrypoint()
+    except ModuleNotFoundError as exc:
+        assert exc.name == "markdown"
+    else:
+        raise AssertionError("Expected nested ModuleNotFoundError to be re-raised")
