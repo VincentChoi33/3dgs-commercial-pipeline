@@ -1,17 +1,31 @@
-preprocess:
+ingest:
   fps: 2
   blur_filter: true
+  pose_path: null
   blur_percentile: 20
 
-sfm:
+select:
+  enabled: true
+  min_blur_score: null
+  max_temporal_gap: null
+  keep_ratio: 1.0
+  write_selected_images: false
+
+reconstruct:
   feature: superpoint
   matcher: lightglue
   camera_model: SIMPLE_RADIAL
   convert_to_pinhole: true
+  pairing:
+    strategy: sequential
+    window: 10
+  undistort: true
 
 train:
   framework_path: null
   config: gsplat_v1.yaml
+  profile: default
+  phase_overrides: {}
   max_steps: 30000
   lambda_dssim: 0.3
   save_iterations:
@@ -27,3 +41,6 @@ compress:
   float16: true
   prune_threshold: 0.005
   downsample: 0.5
+
+report:
+  write_summary: true
