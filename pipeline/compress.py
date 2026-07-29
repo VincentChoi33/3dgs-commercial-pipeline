@@ -96,8 +96,12 @@ def quantize_f16(xyz, f_dc, f_rest, opacity, scales, rots):
 
 
 def downsample(xyz, f_dc, f_rest, opacity, scales, rots, ratio):
+    count = xyz.shape[0]
+    if count == 0:
+        return xyz, f_dc, f_rest, opacity, scales, rots
+
     importance = sigmoid(opacity) * np.exp(scales).prod(axis=1)
-    k = int(xyz.shape[0] * ratio)
+    k = max(1, int(count * ratio))
     idx = np.argsort(-importance)[:k]
     return xyz[idx], f_dc[idx], f_rest[idx], opacity[idx], scales[idx], rots[idx]
 

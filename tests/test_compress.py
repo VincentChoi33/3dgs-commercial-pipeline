@@ -75,6 +75,19 @@ def test_reduce_sh_preserves_coefficient_major_layout():
     assert np.array_equal(reduced, expected)
 
 
+def test_compress_retains_one_gaussian_for_tiny_valid_downsample(tmp_path):
+    from pipeline.compress import compress_ply, load_ply
+
+    ply = _make_test_ply(tmp_path / "full.ply", n=1)
+    output = tmp_path / "tiny_ds50.ply"
+
+    result = compress_ply(ply, output, downsample_ratio=0.5)
+    xyz, *_rest = load_ply(output)
+
+    assert result["gaussian_count"] == 1
+    assert xyz.shape[0] == 1
+
+
 @pytest.mark.parametrize("ratio", [0, -0.1, 1.1])
 def test_compress_rejects_invalid_downsample_ratios(tmp_path, ratio):
     from pipeline.compress import compress_ply
