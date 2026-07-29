@@ -3,6 +3,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 
 
 def _write_pattern(path: Path, seed: int, flat: bool = False) -> None:
@@ -127,3 +128,50 @@ def test_run_select_writes_revisit_candidates_without_pose_metadata(tmp_path):
 
     revisit = json.loads(revisit_path.read_text())
     assert any(candidate["reason"] == "coverage_gap" for candidate in revisit["candidates"])
+
+
+def test_run_select_applies_temporal_gap_in_chronological_order(tmp_path, monkeypatch):
+    from pipeline import select
+
+    scene_dir = _build_scene(tmp_path, count=6)
+
+    total_scores = {
+        "frame_0004.jpg": 100.0,
+        "frame_0000.jpg": 90.0,
+        "frame_0002.jpg": 80.0,
+        "frame_0005.jpg": 70.0,
+        "frame_0001.jpg": 60.0,
+        "frame_0003.jpg": 50.0,
+    }
+
+    def fake_score_frame(image_path, frame_index, frame_count, pose_entry, pose_stats):
+        return {
+            "image_name": image_path.name,
+            "frame_index": frame_index,
+            "blur_score": 10.0,
+            "temporal_spacing": 0,
+            "overlap_novelty": 0.0,
+            "baseline_diversity": 0.0,
+            "coverage_signal": 0.0,
+            "pose_confidence": 1.0,
+            "total_score": total_scores[image_path.name],
+        }
+
+    monkeypatch.setattr(select, "_score_frame", fake_score_frame)
+
+    run_select = select.run_select
+    run_select(scene_dir, {"keep_ratio": 0.5, "max_temporal_gap": 2})
+
+    selected_frames = (scene_dir / "selected_frames.txt").read_text().strip().splitlines()
+    assert selected_frames == ["frame_0000.jpg", "frame_0002.jpg", "frame_0004.jpg"]
+
+
+def test_run_select_raises_for_unreadable_image(tmp_path):
+    from pipeline.select import run_select
+
+    scene_dir = _build_scene(tmp_path, count=3)
+    unreadable = scene_dir / "images" / "frame_0001.jpg"
+    unreadable.write_bytes(b"not-an-image")
+
+    with pytest.raises(ValueError, match="Unable to read image: .*frame_0001.jpg"):
+        run_select(scene_dir, {"keep_ratio": 1.0})

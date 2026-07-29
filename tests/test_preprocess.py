@@ -83,3 +83,13 @@ def test_run_preprocess_returns_selected_images_contract(tmp_path):
     assert (scene_dir / "images").exists()
     assert (scene_dir / "metadata" / "frames.json").exists()
     assert (scene_dir / "metadata" / "selection_metrics.json").exists()
+
+
+def test_filter_blurry_frames_raises_for_unreadable_image(tmp_path):
+    from pipeline.preprocess import filter_blurry_frames
+
+    unreadable = tmp_path / "frame_0000.jpg"
+    unreadable.write_bytes(b"not-an-image")
+
+    with pytest.raises(ValueError, match="Unable to read image: .*frame_0000.jpg"):
+        filter_blurry_frames(tmp_path)

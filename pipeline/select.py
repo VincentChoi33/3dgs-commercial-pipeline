@@ -110,6 +110,8 @@ def _score_frame(
     pose_stats: dict[str, float | np.ndarray] | None,
 ) -> dict:
     image = cv2.imread(str(image_path))
+    if image is None:
+        raise ValueError(f"Unable to read image: {image_path}")
     blur_score = compute_blur_score(image)
     temporal_spacing = min(frame_index, max(frame_count - frame_index - 1, 0))
     overlap_novelty = _overlap_novelty(frame_index, frame_count)
@@ -231,8 +233,9 @@ def run_select(scene_dir: Path, cfg: dict) -> Path:
         selected = [frame for frame in selected if frame["blur_score"] >= float(min_blur_score)]
 
     if max_temporal_gap is not None and selected:
-        filtered = [selected[0]]
-        for frame in sorted(selected[1:], key=lambda item: item["frame_index"]):
+        ordered_selected = sorted(selected, key=lambda item: item["frame_index"])
+        filtered = [ordered_selected[0]]
+        for frame in ordered_selected[1:]:
             if frame["frame_index"] - filtered[-1]["frame_index"] >= int(max_temporal_gap):
                 filtered.append(frame)
         selected = filtered
