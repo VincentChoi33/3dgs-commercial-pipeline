@@ -19,8 +19,17 @@ def _make_framework(tmp_path: Path) -> Path:
     return framework
 
 
-def test_run_train_writes_training_profile_and_metrics_for_quality_profile(tmp_path, monkeypatch):
-    scene_dir = tmp_path / "scene"
+@pytest.mark.parametrize(
+    ("requested_profile", "expected_resolved_profile"),
+    [("quality", "quality"), ("default", "quality")],
+)
+def test_run_train_writes_training_profile_and_metrics_for_repo_owned_profile(
+    tmp_path,
+    monkeypatch,
+    requested_profile,
+    expected_resolved_profile,
+):
+    scene_dir = tmp_path / requested_profile
     framework = _make_framework(tmp_path)
     calls = []
 
@@ -39,7 +48,7 @@ def test_run_train_writes_training_profile_and_metrics_for_quality_profile(tmp_p
         scene_dir,
         {
             "framework_path": str(framework),
-            "profile": "quality",
+            "profile": requested_profile,
             "max_steps": 12000,
             "lambda_dssim": 0.15,
             "save_iterations": [1000, 12000],
@@ -52,11 +61,14 @@ def test_run_train_writes_training_profile_and_metrics_for_quality_profile(tmp_p
     profile = json.loads((metadata_dir / "training_profile.json").read_text())
     metrics = json.loads((metadata_dir / "training_metrics.json").read_text())
 
-    assert profile["profile"] == "quality"
+    assert profile["profile"] == requested_profile
+    assert profile["resolved_profile"] == expected_resolved_profile
     assert profile["config_name"] == "quality_first/quality.yaml"
     assert profile["max_steps"] == 12000
     assert profile["synced_profile_path"] == str(framework / "configs" / "quality_first" / "quality.yaml")
     assert profile["command"][0:3] == ["python", str(framework / "main.py"), "fit"]
+    assert profile["command_choices"]["requested_profile"] == requested_profile
+    assert profile["command_choices"]["resolved_profile"] == expected_resolved_profile
     assert profile["command_choices"]["uses_repo_profile"] is True
     assert Path(profile["framework_path"]) == framework
 
@@ -126,11 +138,12 @@ def test_run_train_raises_clear_error_for_missing_config(tmp_path):
     framework = _make_framework(tmp_path)
     scene_dir = tmp_path / "scene"
 
-    with pytest.raises(FileNotFoundError, match="Training config 'missing.yaml' for profile 'default' was not found"):
+    with pytest.raises(FileNotFoundError, match="Training config 'missing.yaml' for profile 'custom' was not found"):
         run_train(
             scene_dir,
             {
                 "framework_path": str(framework),
+                "profile": "custom",
                 "config": "missing.yaml",
                 "phase_overrides": {},
             },
@@ -174,7 +187,7 @@ def test_run_train_command_changes_for_profile_and_phase_overrides(tmp_path, mon
     quality_config = commands[1][commands[1].index("--config") + 1]
     patched_config = commands[2][commands[2].index("--config") + 1]
 
-    assert default_config == str(framework / "configs" / "gsplat_v1.yaml")
+    assert default_config == str(framework / "configs" / "quality_first" / "quality.yaml")
     assert quality_config == str(framework / "configs" / "quality_first" / "quality.yaml")
     assert patched_config != default_config
     assert Path(patched_config).exists()
