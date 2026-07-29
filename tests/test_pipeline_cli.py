@@ -158,10 +158,14 @@ def test_parser_exposes_new_and_compatibility_commands():
 
 
 def test_report_command_uses_placeholder_when_report_module_missing(tmp_path):
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir(parents=True)
+    (metadata_dir / "capture_info.json").write_text("{}")
+
     report_dir = pipeline_cli._compat_run_report(tmp_path, {"write_summary": True})
 
     assert report_dir == tmp_path / "report"
-    assert (report_dir / "summary.txt").exists()
+    assert (report_dir / "summary.md").exists()
 
 
 def test_load_report_entrypoint_reraises_nested_module_not_found(monkeypatch):

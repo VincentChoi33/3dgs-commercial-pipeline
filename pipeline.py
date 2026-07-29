@@ -60,12 +60,17 @@ def _compat_run_report(scene_dir: Path, cfg: dict):
     report_dir = scene_dir / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
 
-    if cfg.get("write_summary"):
-        summary_path = report_dir / "summary.txt"
-        if not summary_path.exists():
-            summary_path.write_text("Report stage placeholder. Detailed report implementation pending.\n")
+    metadata_dir = scene_dir / "metadata"
+    has_metadata = metadata_dir.exists() and any(metadata_dir.glob("*.json"))
+    if not has_metadata:
+        raise FileNotFoundError(f"No known metadata files found in {metadata_dir}")
 
-    log.info(f"Report stage placeholder complete → {report_dir}")
+    if cfg.get("write_summary", True):
+        summary_path = report_dir / "summary.md"
+        if not summary_path.exists():
+            summary_path.write_text("# Pipeline Report\n\nCompatibility fallback used.\n", encoding="utf-8")
+
+    log.info(f"Report stage compatibility fallback complete → {report_dir}")
     return report_dir
 
 
