@@ -38,3 +38,23 @@ def test_filter_blurry_frames(tmp_path):
 
     kept = filter_blurry_frames(tmp_path, percentile=20)
     assert len(kept) == 8
+
+
+def test_run_preprocess_returns_selected_images_contract(tmp_path):
+    from pipeline.preprocess import run_preprocess
+    import cv2
+
+    photos_dir = tmp_path / "photos"
+    photos_dir.mkdir()
+    for i in range(4):
+        img = np.random.randint(0, 255, (50, 50, 3), dtype=np.uint8)
+        cv2.imwrite(str(photos_dir / f"frame_{i:04d}.jpg"), img)
+
+    scene_dir = tmp_path / "scene"
+    selected_dir = run_preprocess(photos_dir, scene_dir, {"pose_path": None, "keep_ratio": 0.5})
+
+    assert selected_dir == scene_dir / "selected_images"
+    assert selected_dir.exists()
+    assert (scene_dir / "images").exists()
+    assert (scene_dir / "metadata" / "frames.json").exists()
+    assert (scene_dir / "metadata" / "selection_metrics.json").exists()
