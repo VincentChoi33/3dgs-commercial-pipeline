@@ -1,12 +1,10 @@
 from argparse import Namespace
-import importlib.util
 from pathlib import Path
 
+from pipeline import cli as pipeline_cli
+
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_PIPELINE_SPEC = importlib.util.spec_from_file_location("pipeline_cli", _REPO_ROOT / "pipeline.py")
-pipeline_cli = importlib.util.module_from_spec(_PIPELINE_SPEC)
-assert _PIPELINE_SPEC.loader is not None
-_PIPELINE_SPEC.loader.exec_module(pipeline_cli)
 
 
 def _config():
