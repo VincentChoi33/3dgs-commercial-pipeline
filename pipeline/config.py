@@ -64,16 +64,21 @@ def _validate_config_shape(cfg: dict) -> dict:
     return cfg
 
 
+def _load_yaml_mapping(path: Path) -> dict:
+    with open(path) as f:
+        cfg = yaml.safe_load(f)
+    if cfg is None:
+        cfg = {}
+    _require_mapping(cfg, "root")
+    return cfg
+
+
 def load_config(config_path: Path | None = None) -> dict:
     """Load config: default.yaml merged with optional custom config."""
-    with open(_DEFAULT_CONFIG) as f:
-        cfg = yaml.safe_load(f) or {}
-
-    cfg = _expand_legacy_sections(cfg)
+    cfg = _expand_legacy_sections(_load_yaml_mapping(_DEFAULT_CONFIG))
 
     if config_path is not None:
-        with open(config_path) as f:
-            custom = yaml.safe_load(f) or {}
+        custom = _load_yaml_mapping(config_path)
         cfg = merge_configs(cfg, _expand_legacy_sections(custom))
 
     return _add_compat_aliases(_validate_config_shape(cfg))
