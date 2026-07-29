@@ -74,10 +74,16 @@ def reduce_sh(f_rest, current_degree, target_degree):
     if n_coeffs == 0:
         return np.zeros((f_rest.shape[0], 0), dtype=np.float32), 0
     cur_coeffs = (current_degree + 1) ** 2 - 1
-    R = f_rest[:, :cur_coeffs][:, :n_coeffs]
-    G = f_rest[:, cur_coeffs:2 * cur_coeffs][:, :n_coeffs]
-    B = f_rest[:, 2 * cur_coeffs:3 * cur_coeffs][:, :n_coeffs]
-    return np.concatenate([R, G, B], axis=1), target_degree
+    f_rest = f_rest.reshape(f_rest.shape[0], cur_coeffs, 3)
+    return f_rest[:, :n_coeffs, :].reshape(f_rest.shape[0], n_coeffs * 3), target_degree
+
+
+def validate_downsample_ratio(ratio):
+    if ratio is None:
+        return None
+    if ratio <= 0 or ratio > 1:
+        raise ValueError(f"downsample_ratio must be in (0, 1], got {ratio}")
+    return ratio
 
 
 def quantize_f16(xyz, f_dc, f_rest, opacity, scales, rots):
@@ -98,6 +104,7 @@ def downsample(xyz, f_dc, f_rest, opacity, scales, rots, ratio):
 
 def compress_ply(input_path: Path, output_path: Path, sh_degree=0, float16=True,
                  prune_threshold=0.005, downsample_ratio=None):
+    downsample_ratio = validate_downsample_ratio(downsample_ratio)
     xyz, f_dc, f_rest, opacity, scales, rots, cur_sh = load_ply(input_path)
     n_orig = xyz.shape[0]
 

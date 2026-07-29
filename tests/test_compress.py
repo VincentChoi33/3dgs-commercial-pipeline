@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from pathlib import Path
 from plyfile import PlyData, PlyElement
 
@@ -57,3 +58,28 @@ def test_compress_default(tmp_path):
     assert [entry["path"] for entry in report["output_files"]] == [str(compressed), str(downsampled)]
     assert [entry["gaussian_count"] for entry in report["output_files"]] == [1000, 500]
     assert [entry["output_size_bytes"] for entry in report["output_files"]] == [compressed.stat().st_size, downsampled.stat().st_size]
+
+
+def test_reduce_sh_preserves_coefficient_major_layout():
+    from pipeline.compress import reduce_sh
+
+    current_degree = 3
+    target_degree = 1
+    current_coeffs = (current_degree + 1) ** 2 - 1
+    f_rest = np.arange(current_coeffs * 3, dtype=np.float32).reshape(1, current_coeffs * 3)
+
+    reduced, reduced_degree = reduce_sh(f_rest, current_degree, target_degree)
+
+    expected = np.arange(9, dtype=np.float32).reshape(1, 9)
+    assert reduced_degree == target_degree
+    assert np.array_equal(reduced, expected)
+
+
+@pytest.mark.parametrize("ratio", [0, -0.1, 1.1])
+def test_compress_rejects_invalid_downsample_ratios(tmp_path, ratio):
+    from pipeline.compress import compress_ply
+
+    ply = _make_test_ply(tmp_path / "full.ply", n=10)
+
+    with pytest.raises(ValueError, match=r"downsample_ratio must be in \(0, 1\], got"):
+        compress_ply(ply, tmp_path / "invalid.ply", downsample_ratio=ratio)
