@@ -1,6 +1,10 @@
 # Gaussian Splatting Pipeline
 
-An end-to-end **commercially licensable** 3D Gaussian Splatting pipeline for converting videos or photo sets into compressed, deployment-ready PLY assets.
+[![CI](https://github.com/VincentChoi33/gaussian-splatting-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/VincentChoi33/gaussian-splatting-pipeline/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+
+An end-to-end, quality-first 3D Gaussian Splatting pipeline for converting
+videos or photo sets into traceable, compressed PLY assets.
 
 ## Highlights
 
@@ -8,8 +12,12 @@ An end-to-end **commercially licensable** 3D Gaussian Splatting pipeline for con
 - Default `train.profile: default` is the repo's quality-first preset, keeping the high-quality path reproducible without extra flags
 - Optional pose priors can be supplied at ingest time and are used downstream when valid
 - Each scene now records stage metadata plus a final report directory for smoke-checkable outputs
-- Commercially usable dependency stack built around COLMAP, LightGlue, gaussian-splatting-lightning, and gsplat
+- Commercial-friendly components are preferred, with third-party license boundaries documented explicitly
 - Additional `scripts/experiment_*` utilities are preserved for research work and may require local path edits
+
+See the [architecture](docs/architecture.md) and
+[benchmark evidence contract](benchmarks/README.md) for the boundaries behind
+the headline results.
 
 ## Pipeline Overview
 
@@ -21,11 +29,14 @@ LightGlue (SfM) → Lightning + GSplatV1Renderer (Training) → Post-Processing 
 |-----------|------|---------|
 | [COLMAP](https://github.com/colmap/colmap) | Structure-from-Motion | BSD |
 | [LightGlue](https://github.com/cvg/LightGlue) | Feature matching for SfM | Apache 2.0 |
-| [gaussian-splatting-lightning](https://github.com/yzslab/gaussian-splatting-lightning) | Training framework | MIT |
+| [gaussian-splatting-lightning](https://github.com/yzslab/gaussian-splatting-lightning) | Training framework | MIT, with separately licensed third-party components |
 | [gsplat](https://github.com/nerfstudio-project/gsplat) (GSplatV1Renderer) | CUDA rasterizer | Apache 2.0 |
 | Post-processing scripts | Compression | Apache 2.0 (this repo) |
 
-**Entire stack is commercially usable.**
+This repository is Apache 2.0. Before commercial deployment, review the exact
+revisions and licenses of all upstream code, CUDA components, trained models,
+and input datasets. The pinned environment improves reproducibility; it is not
+a substitute for a deployment-specific license review.
 
 ## End-to-End Pipeline
 
@@ -38,7 +49,17 @@ conda activate gsplat
 
 # Clone gaussian-splatting-lightning
 git clone https://github.com/yzslab/gaussian-splatting-lightning
-cd gaussian-splatting-lightning && pip install -r requirements.txt
+cd gaussian-splatting-lightning
+git checkout ebc2e44886725a5270ff931fd029de6d541ce694
+pip install -r requirements.txt
+```
+
+**CPU development and tests:**
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest -q
 ```
 
 **Option B: Docker**
@@ -198,8 +219,13 @@ No retraining required. Applied sequentially: prune → SH reduction → float16
 | Pruned (opacity) | 268 MB | 94% | 198 MB | 87% |
 | + SH deg 1 | 104 MB | 37% | 77 MB | 34% |
 | + SH deg 0 (DC only) | 64 MB | 22% | 47 MB | 21% |
-| + SH0 + float16 | 64 MB | 22% | 47 MB | 21% |
+| + SH0 + float16 | 61 MB | 22.5% | 45 MB | 20.7% |
 | + SH0 + f16 + DS 50% | **30 MB** | **11%** | **22 MB** | **10%** |
+
+The machine-readable source for these historical figures is
+[`benchmarks/results/reported_rtx4090.json`](benchmarks/results/reported_rtx4090.json).
+It is deliberately marked `historical_reported` because the original run did
+not preserve a complete environment lock and source revision.
 
 ### Comparison with Other Methods
 
